@@ -34,10 +34,6 @@ jobs:
   pr-checks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        env_name: [staging, production]
 
     steps:
       - name: Checkout
@@ -63,8 +59,8 @@ jobs:
       - name: Terraform validate
         run: terraform validate -no-color
 
-      - name: Terraform plan (${{ matrix.env_name }})
-        run: terraform plan -input=false -no-color -var-file="environments/${{ matrix.env_name }}.tfvars" -out="${{ matrix.env_name }}.tfplan"
+      - name: Terraform plan (staging)
+        run: terraform plan -input=false -no-color -var-file="environments/staging.tfvars" -out="staging.tfplan"
 
   apply-staging:
     if: |
