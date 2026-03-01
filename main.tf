@@ -14,11 +14,11 @@ locals {
 module "networking" {
   source = "./modules/networking"
 
-  name_prefix              = local.name_prefix
-  vpc_cidr                 = var.vpc_cidr
-  public_subnet_cidr       = var.public_subnet_cidr
-  private_subnet_cidr      = var.private_subnet_cidr
-  public_availability_zone = var.public_availability_zone
+  name_prefix               = local.name_prefix
+  vpc_cidr                  = var.vpc_cidr
+  public_subnet_cidr        = var.public_subnet_cidr
+  private_subnet_cidr       = var.private_subnet_cidr
+  public_availability_zone  = var.public_availability_zone
   private_availability_zone = var.private_availability_zone
   tags                      = local.common_tags
 }
