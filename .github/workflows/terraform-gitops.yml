@@ -34,6 +34,8 @@ jobs:
   pr-checks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      TF_ENV: staging
 
     steps:
       - name: Checkout
@@ -56,14 +58,14 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false -no-color
 
-      - name: Select staging workspace
-        run: terraform workspace select staging || terraform workspace new staging
+      - name: Select workspace
+        run: terraform workspace select -or-create=true "${TF_ENV}"
 
       - name: Terraform validate
         run: terraform validate -no-color
 
-      - name: Terraform plan (staging)
-        run: terraform plan -input=false -no-color -var-file="environments/staging.tfvars" -out="staging.tfplan"
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color -var-file="environments/${TF_ENV}.tfvars" -out="${TF_ENV}.tfplan"
 
   apply-staging:
     if: |
@@ -71,6 +73,8 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     runs-on: ubuntu-latest
     environment: staging
+    env:
+      TF_ENV: staging
 
     steps:
       - name: Checkout
@@ -90,11 +94,11 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false -no-color
 
-      - name: Select staging workspace
-        run: terraform workspace select staging || terraform workspace new staging
+      - name: Select workspace
+        run: terraform workspace select -or-create=true "${TF_ENV}"
 
-      - name: Terraform apply (staging)
-        run: terraform apply -input=false -auto-approve -no-color -var-file="environments/staging.tfvars"
+      - name: Terraform apply
+        run: terraform apply -input=false -auto-approve -no-color -var-file="environments/${TF_ENV}.tfvars"
 
   apply-production:
     if: |
@@ -102,6 +106,8 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'production')
     runs-on: ubuntu-latest
     environment: production
+    env:
+      TF_ENV: production
 
     steps:
       - name: Checkout
@@ -121,8 +127,8 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false -no-color
 
-      - name: Select production workspace
-        run: terraform workspace select production || terraform workspace new production
+      - name: Select workspace
+        run: terraform workspace select -or-create=true "${TF_ENV}"
 
-      - name: Terraform apply (production)
-        run: terraform apply -input=false -auto-approve -no-color -var-file="environments/production.tfvars"
+      - name: Terraform apply
+        run: terraform apply -input=false -auto-approve -no-color -var-file="environments/${TF_ENV}.tfvars"
