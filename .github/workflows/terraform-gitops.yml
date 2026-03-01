@@ -1,6 +1,16 @@
 name: Terraform GitOps
 
 on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Environment to apply manually"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
   pull_request:
     branches:
       - main
@@ -24,10 +34,6 @@ jobs:
   pr-checks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        env_name: [staging, production]
 
     steps:
       - name: Checkout
@@ -53,11 +59,13 @@ jobs:
       - name: Terraform validate
         run: terraform validate -no-color
 
-      - name: Terraform plan (${{ matrix.env_name }})
-        run: terraform plan -input=false -no-color -var-file="environments/${{ matrix.env_name }}.tfvars" -out="${{ matrix.env_name }}.tfplan"
+      - name: Terraform plan (staging)
+        run: terraform plan -input=false -no-color -var-file="environments/staging.tfvars" -out="staging.tfplan"
 
   apply-staging:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     runs-on: ubuntu-latest
     environment: staging
 
@@ -83,7 +91,9 @@ jobs:
         run: terraform apply -input=false -auto-approve -no-color -var-file="environments/staging.tfvars"
 
   apply-production:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'production')
     runs-on: ubuntu-latest
     environment: production
 
