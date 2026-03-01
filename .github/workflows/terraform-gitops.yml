@@ -56,6 +56,9 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false -no-color
 
+      - name: Select staging workspace
+        run: terraform workspace select staging || terraform workspace new staging
+
       - name: Terraform validate
         run: terraform validate -no-color
 
@@ -87,6 +90,9 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false -no-color
 
+      - name: Select staging workspace
+        run: terraform workspace select staging || terraform workspace new staging
+
       - name: Terraform apply (staging)
         run: terraform apply -input=false -auto-approve -no-color -var-file="environments/staging.tfvars"
 
@@ -114,6 +120,9 @@ jobs:
 
       - name: Terraform init
         run: terraform init -input=false -no-color
+
+      - name: Select production workspace
+        run: terraform workspace select production || terraform workspace new production
 
       - name: Terraform apply (production)
         run: terraform apply -input=false -auto-approve -no-color -var-file="environments/production.tfvars"
