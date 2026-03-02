@@ -10,7 +10,7 @@ private_subnet_cidr = "10.10.2.0/24"
 public_availability_zone  = "ap-south-1a"
 private_availability_zone = "ap-south-1b"
 
-my_ip_cidr = "223.185.129.74/32"
+my_ip_cidr = "223.185.131.214/32"
 
 bastion_ami_id        = "ami-0d44b036bd2b73294"
 bastion_instance_type = "t4g.micro"
