@@ -23,10 +23,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: terraform-${{ github.ref }}
-  cancel-in-progress: false
-
 env:
   TF_IN_AUTOMATION: true
 
@@ -36,6 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TF_ENV: staging
+      TF_VAR_db_password: ${{ secrets.STAGING_DB_PASSWORD }}
+    concurrency:
+      group: terraform-pr-${{ github.event.pull_request.number }}-staging
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
@@ -56,16 +56,13 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Terraform init
-        run: terraform init -input=false -no-color
-
-      - name: Select workspace
-        run: terraform workspace select -or-create=true "${TF_ENV}"
+        run: terraform init -input=false -no-color -reconfigure -backend-config="key=${TF_ENV}/terraform.tfstate"
 
       - name: Terraform validate
         run: terraform validate -no-color
 
       - name: Terraform plan
-        run: terraform plan -input=false -no-color -var-file="environments/${TF_ENV}.tfvars" -out="${TF_ENV}.tfplan"
+        run: terraform plan -input=false -no-color -lock=false -var-file="environments/${TF_ENV}.tfvars" -out="${TF_ENV}.tfplan"
 
   apply-staging:
     if: |
@@ -75,6 +72,10 @@ jobs:
     environment: staging
     env:
       TF_ENV: staging
+      TF_VAR_db_password: ${{ secrets.STAGING_DB_PASSWORD }}
+    concurrency:
+      group: terraform-apply-staging
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -92,10 +93,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Terraform init
-        run: terraform init -input=false -no-color
-
-      - name: Select workspace
-        run: terraform workspace select -or-create=true "${TF_ENV}"
+        run: terraform init -input=false -no-color -reconfigure -backend-config="key=${TF_ENV}/terraform.tfstate"
 
       - name: Terraform apply
         run: terraform apply -input=false -auto-approve -no-color -var-file="environments/${TF_ENV}.tfvars"
@@ -103,11 +101,15 @@ jobs:
   apply-production:
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'production')
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'production' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     environment: production
     env:
       TF_ENV: production
+      TF_VAR_db_password: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+    concurrency:
+      group: terraform-apply-production
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -125,10 +127,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Terraform init
-        run: terraform init -input=false -no-color
-
-      - name: Select workspace
-        run: terraform workspace select -or-create=true "${TF_ENV}"
+        run: terraform init -input=false -no-color -reconfigure -backend-config="key=${TF_ENV}/terraform.tfstate"
 
       - name: Terraform apply
         run: terraform apply -input=false -auto-approve -no-color -var-file="environments/${TF_ENV}.tfvars"

@@ -1,8 +1,7 @@
 locals {
-  environment_raw = var.environment != "" ? var.environment : terraform.workspace
-  environment     = local.environment_raw == "default" ? "staging" : local.environment_raw
-  name_prefix     = "${var.project_name}-${local.environment}"
-  db_port         = var.db_engine == "postgres" ? 5432 : 3306
+  environment = var.environment
+  name_prefix = "${var.project_name}-${local.environment}"
+  db_port     = var.db_engine == "postgres" ? 5432 : 3306
 
   common_tags = {
     Project     = var.project_name
