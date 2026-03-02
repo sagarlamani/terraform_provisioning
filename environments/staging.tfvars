@@ -22,4 +22,3 @@ db_instance_class    = "db.t4g.micro"
 db_allocated_storage = 20
 db_name              = "appdb"
 db_username          = "appadmin"
-db_password          = "password"

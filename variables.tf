@@ -1,7 +1,7 @@
 variable "environment" {
-  description = "Environment name. If empty, terraform.workspace is used."
+  description = "Environment name (staging or production)."
   type        = string
-  default     = ""
+  default     = "staging"
 }
 
 variable "aws_region" {
