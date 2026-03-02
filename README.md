@@ -1,58 +1,128 @@
-# Terraform Provisioning Architecture
+# Terraform Provisioning (Staging + Production)
 
-This project uses a **single root stack** with reusable modules to deploy both `staging` and `production` environments without copy-pasting Terraform code.
+This repository provisions AWS infrastructure using Terraform with reusable modules and GitHub Actions GitOps workflow.
 
-## What gets provisioned per environment
+## Project Structure
+
+```text
+.
+├── .github/workflows/terraform-gitops.yml
+├── backend.tf
+├── main.tf
+├── provider.tf
+├── variables.tf
+├── outputs.tf
+├── versions.tf
+├── environments/
+│   ├── staging.tfvars
+│   └── production.tfvars
+├── modules/
+│   ├── networking/
+│   ├── security/
+│   ├── bastion/
+│   └── rds/
+└── scripts/
+    └── bastion_bootstrap.sh
+```
+
+## Provisions (Per Environment)
 
 - 1 VPC
-- 2 subnets: 1 public + 1 private
-- 1 bastion EC2 instance in the public subnet
-- 1 RDS instance with `publicly_accessible = false`
+- 2 subnets: public + private
+- 1 Internet Gateway + public route table association
+- 1 Bastion EC2 instance in public subnet
+- 1 RDS instance in private subnet (`publicly_accessible = false`)
 - Security groups:
-  - bastion SG: SSH (`22`) only from your IP (`my_ip_cidr`)
-  - RDS SG: DB port (`5432` for Postgres, `3306` for MySQL) only from bastion SG
-- Bastion bootstrap via `scripts/bastion_bootstrap.sh`
+  - SSH to bastion only from `my_ip_cidr`
+  - DB access only from bastion security group
 
-## Backend (S3 + DynamoDB)
+## Design Decisions
 
-`backend.tf` configures an S3 backend with DynamoDB state locking.
+- **Module design**
+  - Infrastructure is split into focused reusable modules: `networking`, `security`, `bastion`, `rds`.
+  - Root `main.tf` composes modules once; envs differ only via variable files.
 
-Update these values before first init:
+- **Environment handling**
+  - Environment identity comes from `var.environment` in each tfvars file.
+  - No Terraform workspaces are used now.
+  - State separation is by backend key prefix in the same S3 bucket:
+    - `staging/terraform.tfstate`
+    - `production/terraform.tfstate`
 
-- `bucket`
-- `dynamodb_table`
-- `region`
+- **State + locking**
+  - Backend: S3 for state storage.
+  - DynamoDB table for state lock to prevent concurrent writers.
 
-State is separated by backend key folders in the same bucket:
+- **Secret handling**
+  - `db_password` is not committed in tfvars.
+  - It is injected via env var `TF_VAR_db_password` locally and in CI.
+  - GitHub secrets used:
+    - `STAGING_DB_PASSWORD`
+    - `PRODUCTION_DB_PASSWORD`
+    - `AWS_ACCESS_KEY_ID`
+    - `AWS_SECRET_ACCESS_KEY`
+    - `AWS_SESSION_TOKEN` (only for temporary creds)
 
-- `staging/terraform.tfstate`
-- `production/terraform.tfstate`
+- **CI/CD behavior**
+  - PR to `main`: `fmt`, `validate`, and `plan` (staging).
+  - Push to `main`: apply staging.
+  - Tag `v*.*.*`: apply production.
+  - Manual trigger supported with `target_env` input.
+  - Concurrency groups prevent overlapping applies per environment.
 
-## Environment selection
+## Prerequisites
 
-Use one root codebase and pass env-specific variables:
+- Terraform installed (`terraform version`)
+- AWS CLI installed (`aws --version`)
+- Valid AWS credentials with permissions for VPC/EC2/RDS/SG/S3/DynamoDB
+- Existing backend resources:
+  - S3 bucket for state
+  - DynamoDB table for lock
+
+## Manual Testing Instructions
+
+### 1) Validate formatting and configuration
+
+```bash
+terraform fmt -check -recursive
+terraform validate
+```
+
+### 2) Test staging
 
 ```bash
 terraform init -reconfigure -backend-config="key=staging/terraform.tfstate"
-# PowerShell: $env:TF_VAR_db_password="<staging-db-password>"
-export TF_VAR_db_password="<staging-db-password>"
+# PowerShell: $env:TF_VAR_db_password="<staging-password>"
+export TF_VAR_db_password="<staging-password>"
 terraform plan -var-file="environments/staging.tfvars"
 terraform apply -var-file="environments/staging.tfvars"
 ```
 
+### 3) Test production
+
 ```bash
 terraform init -reconfigure -backend-config="key=production/terraform.tfstate"
-# PowerShell: $env:TF_VAR_db_password="<production-db-password>"
-export TF_VAR_db_password="<production-db-password>"
+# PowerShell: $env:TF_VAR_db_password="<production-password>"
+export TF_VAR_db_password="<production-password>"
 terraform plan -var-file="environments/production.tfvars"
 terraform apply -var-file="environments/production.tfvars"
 ```
 
-## Notes
 
-- Replace placeholder values in `environments/*.tfvars`:
-  - `my_ip_cidr`
-  - `bastion_ami_id`
-  - `bastion_key_name`
-- Set `TF_VAR_db_password` from your shell/CI secret store before plan/apply.
-- RDS subnet groups require at least two subnets; this setup includes both existing subnets in the subnet group and pins RDS AZ to the private subnet AZ.
+## Environment Switching Explanation
+
+Switching environment is done by changing **both**:
+
+1) backend state key (at `terraform init` time), and  
+2) variable file (at `plan/apply` time).
+
+Example:
+
+- Staging:
+  - `terraform init -reconfigure -backend-config="key=staging/terraform.tfstate"`
+  - `terraform plan/apply -var-file="environments/staging.tfvars"`
+
+- Production:
+  - `terraform init -reconfigure -backend-config="key=production/terraform.tfstate"`
+  - `terraform plan/apply -var-file="environments/production.tfvars"`
+
